@@ -1,0 +1,34 @@
+#include <BLEDevice.h>
+
+#include "Servo.h"
+
+class Karlcar : public BLECharacteristicCallbacks, BLEServerCallbacks 
+{
+public:
+    Karlcar(uint8_t pinServo, uint8_t pinMotorPwm, uint8_t pinMotorForward, uint8_t pinMotorReverse);
+
+    void begin();
+    void loop();
+
+    void onConnect(BLEClient* pclient);
+    void onWrite(BLECharacteristic *pCharacteristic);
+    void onDisconnect(BLEClient* pclient);
+
+private:
+    Servo servo;
+    uint8_t pinMotorPwm;
+    uint8_t pinMotorForward;
+    uint8_t pinMotorReverse;
+
+    int16_t throttleValue;
+    uint32_t throttleValueLastSet;
+
+    int16_t steeringValue;
+    uint32_t steeringValueLastSet;
+
+    BLECharacteristic *throttleCharacteristic;
+    BLECharacteristic *steeringCharacteristic;
+
+    BLEServer *bleServer;
+    BLEService *bleService;
+};
