@@ -6,11 +6,20 @@
 
 #define BLE_MAX_IDLE_TIME_MILLIS    3000
 
-Karlcar::Karlcar(uint8_t pinServo, uint8_t pinMotorPwm, uint8_t pinMotorForward, uint8_t pinMotorReverse) : 
+const float ServoLightDownValue = 0.55;
+const float ServoLightUpValue = 0.46;
+
+
+Karlcar::Karlcar(uint8_t pinServo, uint8_t pinMotorPwm, uint8_t pinMotorForward, uint8_t pinMotorReverse, uint8_t pinServoLights, uint8_t pinLightsPwm) : 
     servo(pinServo, 500, 2500),
+    servoLights(pinServoLights, 500, 2500),
     pinMotorPwm(pinMotorPwm),
     pinMotorForward(pinMotorForward),
     pinMotorReverse(pinMotorReverse),
+    pinServoLights(pinServoLights),
+    pinLightsPwm(pinLightsPwm),
+    cycles(0),
+    lastStop(0),
     throttleValue(NAN),
     throttleValueLastSet(0),
     steeringValue(NAN),
@@ -28,8 +37,13 @@ void Karlcar::begin()
     pinMode(pinMotorForward, OUTPUT);
     pinMode(pinMotorReverse, OUTPUT);
 
+    pinMode(pinLightsPwm, OUTPUT);
+
     servo.begin();
     servo.setValue(0.5);
+
+    servoLights.begin();
+    servoLights.setValue(ServoLightDownValue);
 
     BLEDevice::init("Karlcar");
     bleServer = BLEDevice::createServer();
@@ -89,23 +103,41 @@ void Karlcar::onDisconnect(BLEClient* pclient)
 
 void Karlcar::loop()
 {
-    servo.setValue(steeringValue / (float)INT16_MAX + 0.5);
+    servo.setValue(-steeringValue / (float)INT16_MAX + 0.5);
 
     if (millis() - throttleValueLastSet > BLE_MAX_IDLE_TIME_MILLIS)
     {
         throttleValue = 0;
     }
 
+    uint8_t motorPwmValue = 0;
+
     if (throttleValue == 0)
     {
         digitalWrite(pinMotorForward, LOW);
         digitalWrite(pinMotorReverse, LOW);
+        analogWrite(pinMotorPwm, 0);
+        if (lastStop == 0) {
+            lastStop = cycles;
+        } else if (cycles > lastStop + 250) {
+            servoLights.setValue(ServoLightDownValue);
+            digitalWrite(pinLightsPwm, LOW);
+        }
     }
     else
     {
         digitalWrite(throttleValue > 0 ? pinMotorReverse : pinMotorForward, LOW);
         digitalWrite(throttleValue < 0 ? pinMotorReverse : pinMotorForward, HIGH);
-        analogWrite(pinMotorPwm, abs(throttleValue / (float) INT16_MAX * UINT8_MAX));
+        motorPwmValue = (uint8_t)(abs(throttleValue) / (float)INT16_MAX * 95.0 + 160.0);
+        analogWrite(pinMotorPwm, motorPwmValue);
+        lastStop = 0;
+        servoLights.setValue(ServoLightUpValue);
+        digitalWrite(pinLightsPwm, HIGH);
+    }
+
+    cycles++;
+    if (false && cycles % 50 == 0) {
+        Serial.printf("throttle vaue: %d motor power value: %d\n", throttleValue, motorPwmValue);
     }
 
     delay(20);
